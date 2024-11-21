@@ -3,14 +3,13 @@ function SendMessage() {
     var player = GetPlayer();
     var message = player.GetVar("message");
     var response = player.GetVar("response");
-    var chatHistory = player.GetVar("chatHistory");
-    var role = player.GetVar("role");
     var apiKey = player.GetVar("apiKey");
+    var systemPrompt = player.GetVar("systemPrompt"); // New variable for custom system prompt
 
     apiKey = "Bearer " + apiKey;
-    var question = message;
 
-    message = "Act as a " + role + ". Write answer in maximun 450 characters. My question is: " + message;
+    // Set 'loading' to true at the start of the API request
+    player.SetVar("loading", true);
 
     // Set up API request
     function sendMessage() {
@@ -22,18 +21,15 @@ function SendMessage() {
 
         xhr.onreadystatechange = function () {
             if (xhr.readyState === 4) {
+                // Set 'loading' to false when the API request is complete
+                player.SetVar("loading", false);
+
                 if (xhr.status === 200) {
                     var apiResponse = JSON.parse(xhr.responseText);
-
                     if (apiResponse.choices && apiResponse.choices[0]) {
                         var generatedResponse = apiResponse.choices[0].message.content;
-
                         // Update Articulate Storyline variables
                         player.SetVar("response", generatedResponse);
-                        player.SetVar("chatHistory", chatHistory + "\nQuestion: " + question + "\nAnswer: " + generatedResponse + "\n");
-
-                        // Clear the message variable
-                        player.SetVar("message", "");
                     } else {
                         console.error("Unexpected API response:", JSON.stringify(apiResponse));
                     }
@@ -48,7 +44,7 @@ function SendMessage() {
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a helpful assistant."
+                    "content": systemPrompt || "You are a helpful assistant." // Use custom system prompt if provided
                 },
                 {
                     "role": "user",
@@ -61,32 +57,4 @@ function SendMessage() {
     }
 
     sendMessage();
-}
-
-function CopyResponse() {
-
-    var player = GetPlayer();
-    var response = player.GetVar("response");
-    navigator.clipboard.writeText(response)
-        .then(function () {
-            console.log('Text copied to clipboard');
-        })
-        .catch(function (error) {
-            console.error('Failed to copy text: ', error);
-        });
-
-}
-
-function ExportChat() {
-
-    var title = "Chat History";
-    var editor = GetPlayer().GetVar("chatHistory");
-    var blob = new Blob([editor], { type: 'application/msword' });
-    var downloadLink = document.createElement("a");
-    downloadLink.download = "Chat History" + ".doc";
-    downloadLink.innerHTML = "Download File";
-    downloadLink.href = window.URL.createObjectURL(blob);
-    document.body.appendChild(downloadLink);
-    downloadLink.click();
-    document.body.removeChild(downloadLink);
 }
