@@ -28,8 +28,31 @@ function SendMessage() {
                     var apiResponse = JSON.parse(xhr.responseText);
                     if (apiResponse.choices && apiResponse.choices[0]) {
                         var generatedResponse = apiResponse.choices[0].message.content;
-                        // Update Articulate Storyline variables
-                        player.SetVar("response", generatedResponse);
+
+                        try {
+                            // Attempt to parse the response as JSON
+                            var parsedResponse = JSON.parse(generatedResponse);
+
+                            // If the response is valid JSON, iterate through the keys and set variables
+                            if (typeof parsedResponse === "object" && parsedResponse !== null) {
+                                for (var key in parsedResponse) {
+                                    if (parsedResponse.hasOwnProperty(key)) {
+                                        // Check if the key exists in Articulate Storyline
+                                        if (player.GetVar(key) !== undefined) {
+                                            player.SetVar(key, parsedResponse[key]);
+                                        } else {
+                                            console.warn(`Variable '${key}' does not exist in Storyline.`);
+                                        }
+                                    }
+                                }
+                            } else {
+                                console.warn("Parsed response is not a valid JSON object.");
+                            }
+                        } catch (e) {
+                            // If parsing fails, treat the response as plain text
+                            console.warn("Response is not a JSON object. Returning as plain text.");
+                            player.SetVar("response", generatedResponse);
+                        }
                     } else {
                         console.error("Unexpected API response:", JSON.stringify(apiResponse));
                     }
