@@ -4,8 +4,8 @@ function SendMessage() {
     var message = player.GetVar("message");
     var response = player.GetVar("response");
     var apiKey = player.GetVar("apiKey");
-    var systemPrompt = player.GetVar("systemPrompt"); // New variable for custom system prompt
-
+    var systemPrompt = player.GetVar("systemPrompt");
+    var modelVersion = player.GetVar("modelVersion");
     apiKey = "Bearer " + apiKey;
 
     // Set 'loading' to true at the start of the API request
@@ -63,7 +63,7 @@ function SendMessage() {
         };
 
         var data = JSON.stringify({
-            "model": "gpt-3.5-turbo",
+            "model": modelVersion || "gpt-4o-mini",
             "messages": [
                 {
                     "role": "system",
