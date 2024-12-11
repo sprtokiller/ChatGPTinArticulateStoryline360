@@ -39,7 +39,12 @@ function SendMessage() {
                                     if (parsedResponse.hasOwnProperty(key)) {
                                         // Check if the key exists in Articulate Storyline
                                         if (player.GetVar(key) !== undefined) {
-                                            player.SetVar(key, parsedResponse[key]);
+                                            // Check if the variable is an array of strings
+                                            if (Array.isArray(parsedResponse[key]) && parsedResponse[key].every(item => typeof item === "string")) {
+                                                player.SetVar(key, parsedResponse[key].join("\n"));
+                                            } else {
+                                                player.SetVar(key, parsedResponse[key]);
+                                            }
                                         } else {
                                             console.warn(`Variable '${key}' does not exist in Storyline.`);
                                         }
