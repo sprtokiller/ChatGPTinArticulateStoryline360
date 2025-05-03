@@ -1,84 +1,78 @@
 function SendMessage() {
-    // Get variables from Articulate Storyline
-    const player = GetPlayer();
-    const message = player.GetVar("message");
+    const player       = GetPlayer();
+    const message      = player.GetVar("message");
     const systemPrompt = player.GetVar("systemPrompt");
-    const modelVersion = player.GetVar("modelVersion");
-    const proxyUrl = player.GetVar("proxyUrl");
+    const modelVersion = player.GetVar("modelVersion") || "gpt-4o-mini";
+    const proxyUrl     = player.GetVar("proxyUrl");
 
-    // Set 'loading' to true at the start of the API request
+    // indicate loading in Storyline
     player.SetVar("loading", true);
 
-    // Set up API request
-    function sendMessage() {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', proxyUrl, true);
-        xhr.setRequestHeader('Content-Type', 'application/json');
+    // build our payload to match the proxy’s expectations
+    const payload = {
+        model:       modelVersion,
+        systemPrompt,
+        message
+    };
 
-        xhr.onreadystatechange = () => {
-            if (xhr.readyState === 4) {
-                // Set 'loading' to false when the API request is complete
-                player.SetVar("loading", false);
+    fetch(proxyUrl, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify(payload)
+    })
+    .then(async res => {
+        // done loading
+        player.SetVar("loading", false);
 
-                if (xhr.status === 200) {
-                    const apiResponse = JSON.parse(xhr.responseText);
-                    if (apiResponse.choices?.[0]) {
-                        const generatedResponse = apiResponse.choices[0].message.content;
+        if (!res.ok) {
+            const errTxt = await res.text();
+            console.error("Proxy error:", res.status, res.statusText, errTxt);
+            return;
+        }
 
-                        try {
-                            // Attempt to parse the response as JSON
-                            const parsedResponse = JSON.parse(generatedResponse);
+        return res.json();
+    })
+    .then(data => {
+        if (!data) return;
 
-                            // If the response is valid JSON, iterate through the keys and set variables
-                            if (typeof parsedResponse === "object" && parsedResponse !== null) {
-                                for (const key in parsedResponse) {
-                                    if (Object.hasOwn(parsedResponse, key)) {
-                                        // Check if the key exists in Articulate Storyline
-                                        if (player.GetVar(key) !== undefined) {
-                                            // Check if the variable is an array of strings
-                                            if (Array.isArray(parsedResponse[key]) && parsedResponse[key].every(item => typeof item === "string")) {
-                                                player.SetVar(key, parsedResponse[key].join("\n"));
-                                            } else {
-                                                player.SetVar(key, parsedResponse[key]);
-                                            }
-                                        } else {
-                                            console.warn(`Variable '${key}' does not exist in Storyline.`);
-                                        }
-                                    }
-                                }
-                            } else {
-                                console.warn("Parsed response is not a valid JSON object.");
-                            }
-                        } catch (e) {
-                            // If parsing fails, treat the response as plain text
-                            console.warn("Response is not a JSON object. Returning as plain text.");
-                            player.SetVar("response", generatedResponse);
-                        }
-                    } else {
-                        console.error("Unexpected API response:", JSON.stringify(apiResponse));
-                    }
+        const choice = data.choices?.[0];
+        if (!choice) {
+            console.error("Unexpected API response:", data);
+            return;
+        }
+
+        const generated = choice.message?.content;
+        if (typeof generated !== "string") {
+            console.error("No content in choice:", choice);
+            return;
+        }
+
+        // try to parse JSON-out
+        let parsed;
+        try {
+            parsed = JSON.parse(generated);
+        } catch {
+            parsed = null;
+        }
+
+        if (parsed && typeof parsed === "object") {
+            for (const key in parsed) {
+                if (!Object.hasOwn(parsed, key)) continue;
+
+                const value = parsed[key];
+                if (Array.isArray(value) && value.every(item => typeof item === "string")) {
+                    player.SetVar(key, value.join("\n"));
                 } else {
-                    console.error("Error in API request:", xhr.status, xhr.statusText, xhr.responseText);
+                    player.SetVar(key, value);
                 }
             }
-        };
-
-        const data = JSON.stringify({
-            "model": modelVersion || "gpt-4o-mini",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": systemPrompt || "You are a helpful assistant." // Use custom system prompt if provided
-                },
-                {
-                    "role": "user",
-                    "content": message
-                }
-            ]
-        });
-
-        xhr.send(data);
-    }
-
-    sendMessage();
+        } else {
+            // fallback: raw text
+            player.SetVar("response", generated);
+        }
+    })
+    .catch(err => {
+        player.SetVar("loading", false);
+        console.error("Fetch failed:", err);
+    });
 }
